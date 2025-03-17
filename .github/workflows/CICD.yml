@@ -1,0 +1,80 @@
+name: CI Workflow
+
+on:
+  push:
+    branches:
+      - main
+  #pull_request:aa
+   # branches:
+    #  - main
+
+jobs:
+  build-csharp_new:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v2
+
+        
+      - name: Set up .NET 8.0 SDK
+        uses: actions/setup-dotnet@v2
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Restore .NET dependencies
+        run: dotnet restore
+
+      - name: Build .NET project
+        run: dotnet build --configuration Release
+
+      - name: Run .NET tests
+        run: dotnet test --configuration Release --no-build --verbosity normal
+
+  build-typescript:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v2
+
+      - name: Set up Node.js for TypeScript
+        uses: actions/setup-node@v3
+        with:
+          node-version: '16'
+
+      - name: Install dependencies (npm)
+        working-directory: ./DotnetTemplate.Web 
+        run: npm install
+
+      - name: Build TypeScript project
+        working-directory: ./DotnetTemplate.Web
+        run: npm run build
+
+      - name: Run TypeScript linter
+        working-directory: ./DotnetTemplate.Web  
+        run: npm run lint
+
+      - name: Run TypeScript tests
+        working-directory: ./DotnetTemplate.Web
+        run: npm test
+
+  notify:
+    runs-on: ubuntu-latest
+    needs: [build-csharp_new, build-typescript]  # Ensure the notify job runs after the others
+
+    steps:
+      - name: Send Slack notification (on success)
+        if: success() 
+        run: |
+          curl -X POST -H 'Content-type: application/json' --data '{"text":"🚀 CI Workflow succeeded! :tada:"}' ${{ secrets.SLACK_WEBHOOK_URL }}
+
+      - name: Send Slack notification (on failure)
+        if: failure()
+        run: |
+          curl -X POST -H 'Content-type: application/json' --data '{"text":"❌ CI Workflow failed! Please check the build logs."}' ${{ secrets.SLACK_WEBHOOK_URL }}
+
+      - name: Send Slack notification (on cancel)
+        if: cancelled()
+        run: |
+          curl -X POST -H 'Content-type: application/json' --data '{"text":"⚠️ CI Workflow was cancelled."}' ${{ secrets.SLACK_WEBHOOK_URL }}
